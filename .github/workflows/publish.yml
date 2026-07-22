@@ -1,0 +1,50 @@
+name: Publish
+
+# Triggered by tags matching v* (e.g. v0.2.0).
+# Required GitHub Actions secrets (PAUSE):
+#   CPAN_USERNAME  — PAUSE ID
+#   CPAN_PASSWORD  — PAUSE password or upload token
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: '5.40'
+
+      - name: Install dependencies
+        run: |
+          cpanm --notest --installdeps .
+          cpanm --notest CryptX Test::More ExtUtils::MakeMaker
+
+      - name: Run tests
+        run: |
+          perl Makefile.PL
+          prove -lrv t
+
+      - name: Build distribution
+        run: |
+          perl Makefile.PL
+          make dist
+
+      - name: Upload to CPAN (PAUSE)
+        env:
+          CPAN_USERNAME: ${{ secrets.CPAN_USERNAME }}
+          CPAN_PASSWORD: ${{ secrets.CPAN_PASSWORD }}
+        run: |
+          cpanm --notest CPAN::Uploader
+          DIST=$(ls -1 Sdkey-*.tar.gz | head -n1)
+          echo "Uploading $DIST"
+          cpan-upload --user "$CPAN_USERNAME" --password "$CPAN_PASSWORD" "$DIST"
